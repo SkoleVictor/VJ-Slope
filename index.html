@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slope-Lignende Spil</title>
+<style>
+    body { margin: 0; overflow: hidden; background: black; }
+    #score {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: white;
+        font-family: Arial, sans-serif;
+        font-size: 24px;
+    }
+</style>
+</head>
+<body>
+
+<div id="score">Score: 0</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Lys
+const light = new THREE.DirectionalLight(0xffffff, 2);
+light.position.set(5, 10, 5);
+scene.add(light);
+
+// Bold
+const ballGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+const ballMaterial = new THREE.MeshStandardMaterial({
+    color: 0x00ff00,
+    emissive: 0x00aa00
+});
+const ball = new THREE.Mesh(ballGeometry, ballMaterial);
+ball.position.y = 1;
+scene.add(ball);
+
+// Bane-segmenter
+const segments = [];
+
+function createSegment(z) {
+    const geometry = new THREE.BoxGeometry(8, 0.5, 20);
+    const material = new THREE.MeshStandardMaterial({
+        color: 0x222222
+    });
+
+    const segment = new THREE.Mesh(geometry, material);
+
+    segment.position.set(
+        (Math.random() - 0.5) * 4,
+        0,
+        z
+    );
+
+    scene.add(segment);
+    segments.push(segment);
+}
+
+for (let i = 0; i < 20; i++) {
+    createSegment(-i * 20);
+}
+
+camera.position.set(0, 4, 8);
+
+let speed = 0.25;
+let moveX = 0;
+let score = 0;
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft' || e.key === 'a')
+        moveX = -0.25;
+
+    if (e.key === 'ArrowRight' || e.key === 'd')
+        moveX = 0.25;
+});
+
+document.addEventListener('keyup', () => {
+    moveX = 0;
+});
+
+function gameOver() {
+    alert("Game Over! Score: " + Math.floor(score));
+    location.reload();
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    ball.position.x += moveX;
+    ball.rotation.z += speed;
+
+    score += speed;
+    document.getElementById("score").textContent =
+        "Score: " + Math.floor(score);
+
+    // Flyt banen mod spilleren
+    segments.forEach(seg => {
+        seg.position.z += speed;
+
+        if (seg.position.z > 20) {
+            seg.position.z -= 400;
+            seg.position.x = (Math.random() - 0.5) * 4;
+        }
+    });
+
+    // Find nærmeste segment
+    let supported = false;
+
+    segments.forEach(seg => {
+        const dx = Math.abs(ball.position.x - seg.position.x);
+        const dz = Math.abs(ball.position.z - seg.position.z);
+
+        if (dx < 4 && dz < 10) {
+            supported = true;
+        }
+    });
+
+    if (!supported) {
+        ball.position.y -= 0.15;
+    } else {
+        ball.position.y = 1;
+    }
+
+    if (ball.position.y < -5) {
+        gameOver();
+    }
+
+    speed += 0.00005;
+
+    camera.position.x +=
+        (ball.position.x - camera.position.x) * 0.1;
+
+    renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+    camera.aspect =
+        window.innerWidth / window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+    );
+});
+</script>
+
+</body>
+</html>
