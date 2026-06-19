@@ -1,169 +1,143 @@
-<!DOCTYPE html>
+from pathlib import Path
+
+html = r"""<!DOCTYPE html>
 <html lang="da">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Slope-Lignende Spil</title>
+<title>Neon Runner (Slope-inspireret)</title>
 <style>
-    body { margin: 0; overflow: hidden; background: black; }
-    #score {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        color: white;
-        font-family: Arial, sans-serif;
-        font-size: 24px;
-    }
+body{margin:0;overflow:hidden;background:#000;font-family:Arial}
+#ui{position:fixed;top:10px;left:10px;color:#00ff88;font-size:24px}
+canvas{display:block}
 </style>
 </head>
 <body>
-
-<div id="score">Score: 0</div>
-
+<div id="ui">Score: 0</div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
+const scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0x000000,30,220);
 
-const camera = new THREE.PerspectiveCamera(
-    75,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-);
-
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,1000);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Lys
-const light = new THREE.DirectionalLight(0xffffff, 2);
-light.position.set(5, 10, 5);
-scene.add(light);
+scene.add(new THREE.AmbientLight(0xffffff,1.5));
+const dl=new THREE.DirectionalLight(0xffffff,2);
+dl.position.set(10,20,10);
+scene.add(dl);
 
-// Bold
-const ballGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-const ballMaterial = new THREE.MeshStandardMaterial({
-    color: 0x00ff00,
-    emissive: 0x00aa00
-});
-const ball = new THREE.Mesh(ballGeometry, ballMaterial);
-ball.position.y = 1;
+const ball=new THREE.Mesh(
+ new THREE.SphereGeometry(.8,32,32),
+ new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x00ff66,emissiveIntensity:1})
+);
+ball.position.y=1;
 scene.add(ball);
 
-// Bane-segmenter
-const segments = [];
+camera.position.set(0,5,10);
 
-function createSegment(z) {
-    const geometry = new THREE.BoxGeometry(8, 0.5, 20);
-    const material = new THREE.MeshStandardMaterial({
-        color: 0x222222
-    });
+const roads=[];
+const obstacles=[];
 
-    const segment = new THREE.Mesh(geometry, material);
+function makeRoad(z){
+ const road=new THREE.Mesh(
+  new THREE.BoxGeometry(12,.5,18),
+  new THREE.MeshStandardMaterial({color:0x00ff66,emissive:0x006633})
+ );
+ road.rotation.z=(Math.random()-.5)*0.25;
+ road.position.set((Math.random()-.5)*6,-.5,z);
+ scene.add(road);
+ roads.push(road);
 
-    segment.position.set(
-        (Math.random() - 0.5) * 4,
-        0,
-        z
-    );
-
-    scene.add(segment);
-    segments.push(segment);
+ if(Math.random()<0.6){
+   const o=new THREE.Mesh(
+    new THREE.BoxGeometry(1.5,2,1.5),
+    new THREE.MeshStandardMaterial({color:0xff2222,emissive:0xaa0000})
+   );
+   o.position.set(road.position.x+(Math.random()-.5)*8,1,z+(Math.random()-.5)*8);
+   scene.add(o);
+   obstacles.push(o);
+ }
 }
 
-for (let i = 0; i < 20; i++) {
-    createSegment(-i * 20);
+for(let i=0;i<40;i++) makeRoad(-i*18);
+
+let left=false,right=false;
+onkeydown=e=>{
+ if(e.key==="ArrowLeft"||e.key==="a") left=true;
+ if(e.key==="ArrowRight"||e.key==="d") right=true;
+};
+onkeyup=e=>{
+ if(e.key==="ArrowLeft"||e.key==="a") left=false;
+ if(e.key==="ArrowRight"||e.key==="d") right=false;
+};
+
+let speed=.45,score=0;
+
+function endGame(){
+ alert("Game Over! Score: "+Math.floor(score));
+ location.reload();
 }
 
-camera.position.set(0, 4, 8);
+function loop(){
+ requestAnimationFrame(loop);
 
-let speed = 0.25;
-let moveX = 0;
-let score = 0;
+ if(left) ball.position.x-=0.22;
+ if(right) ball.position.x+=0.22;
 
-document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft' || e.key === 'a')
-        moveX = -0.25;
+ score+=speed;
+ speed+=0.00008;
 
-    if (e.key === 'ArrowRight' || e.key === 'd')
-        moveX = 0.25;
-});
+ document.getElementById("ui").textContent="Score: "+Math.floor(score);
 
-document.addEventListener('keyup', () => {
-    moveX = 0;
-});
+ let supported=false;
 
-function gameOver() {
-    alert("Game Over! Score: " + Math.floor(score));
-    location.reload();
+ roads.forEach(r=>{
+   r.position.z+=speed;
+   if(r.position.z>30){
+      r.position.z-=720;
+      r.position.x=(Math.random()-.5)*6;
+      r.rotation.z=(Math.random()-.5)*0.25;
+   }
+   const dx=Math.abs(ball.position.x-r.position.x);
+   const dz=Math.abs(ball.position.z-r.position.z);
+   if(dx<6 && dz<9) supported=true;
+ });
+
+ obstacles.forEach(o=>{
+   o.position.z+=speed;
+   if(o.position.z>30){
+      o.position.z-=720;
+      o.position.x=(Math.random()-.5)*10;
+   }
+   const d=Math.hypot(ball.position.x-o.position.x,ball.position.z-o.position.z);
+   if(d<1.4) endGame();
+ });
+
+ if(supported) ball.position.y=1;
+ else ball.position.y-=0.22;
+
+ if(ball.position.y<-10) endGame();
+
+ camera.position.x+=(ball.position.x-camera.position.x)*0.08;
+ camera.lookAt(ball.position.x,1,-15);
+
+ renderer.render(scene,camera);
 }
+loop();
 
-function animate() {
-    requestAnimationFrame(animate);
-
-    ball.position.x += moveX;
-    ball.rotation.z += speed;
-
-    score += speed;
-    document.getElementById("score").textContent =
-        "Score: " + Math.floor(score);
-
-    // Flyt banen mod spilleren
-    segments.forEach(seg => {
-        seg.position.z += speed;
-
-        if (seg.position.z > 20) {
-            seg.position.z -= 400;
-            seg.position.x = (Math.random() - 0.5) * 4;
-        }
-    });
-
-    // Find nærmeste segment
-    let supported = false;
-
-    segments.forEach(seg => {
-        const dx = Math.abs(ball.position.x - seg.position.x);
-        const dz = Math.abs(ball.position.z - seg.position.z);
-
-        if (dx < 4 && dz < 10) {
-            supported = true;
-        }
-    });
-
-    if (!supported) {
-        ball.position.y -= 0.15;
-    } else {
-        ball.position.y = 1;
-    }
-
-    if (ball.position.y < -5) {
-        gameOver();
-    }
-
-    speed += 0.00005;
-
-    camera.position.x +=
-        (ball.position.x - camera.position.x) * 0.1;
-
-    renderer.render(scene, camera);
-}
-
-animate();
-
-window.addEventListener('resize', () => {
-    camera.aspect =
-        window.innerWidth / window.innerHeight;
-
-    camera.updateProjectionMatrix();
-
-    renderer.setSize(
-        window.innerWidth,
-        window.innerHeight
-    );
+addEventListener('resize',()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
 });
 </script>
-
 </body>
-</html>
+</html>"""
+
+path = "/mnt/data/neon_runner_slope_inspireret.html"
+Path(path).write_text(html, encoding="utf-8")
+print(path)
